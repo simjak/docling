@@ -1,5 +1,7 @@
+import csv
 import io
 import logging
+import os
 import tempfile
 from subprocess import DEVNULL, PIPE, Popen
 from typing import Iterable, Optional, Tuple
@@ -96,7 +98,6 @@ class TesseractOcrCliModel(BaseOcrModel):
             tsv_file.seek(0)
             decoded_data = tsv_file.read().decode("utf-8")
 
-        # Parse the TSV data into a DataFrame
         df = pd.read_csv(io.StringIO(decoded_data), sep="\t")
 
         # Filter rows that contain actual text
@@ -129,14 +130,17 @@ class TesseractOcrCliModel(BaseOcrModel):
                         high_res_image = page._backend.get_page_image(
                             scale=self.scale, cropbox=ocr_rect
                         )
-
-                        with tempfile.NamedTemporaryFile(
-                            suffix=".png", mode="w"
-                        ) as image_file:
-                            fname = image_file.name
-                            high_res_image.save(fname)
+                        try:
+                            with tempfile.NamedTemporaryFile(
+                                suffix=".png", mode="w+b", delete=False
+                            ) as image_file:
+                                fname = image_file.name
+                                high_res_image.save(image_file)
 
                             df = self._run_tesseract(fname)
+                        finally:
+                            if os.path.exists(fname):
+                                os.remove(fname)
 
                         # _log.info(df)
 
